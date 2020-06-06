@@ -1,8 +1,14 @@
 const { gql } = require('apollo-server-express');
 const posts = require('../temp');
+const { authCheck } = require('../helpers/auth');
 
 const totalPosts = () => posts.length;
-const allPosts = () => posts;
+
+const allPosts = async (_, _a, { req }) => {
+  await authCheck(req);
+  return posts;
+};
+
 const newPost = (_, { input: { title, description } }) => {
   const post = {
     id: posts.length + 1,

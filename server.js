@@ -4,6 +4,7 @@ require('colors');
 require('dotenv').config();
 const { loadFilesSync } = require('@graphql-tools/load-files');
 const { mergeTypeDefs, mergeResolvers } = require('@graphql-tools/merge');
+const { authCheck } = require('./helpers/auth');
 
 const mongoose = require('mongoose');
 const path = require('path');
@@ -36,12 +37,13 @@ const resolvers = mergeResolvers(
 const apolloServer = new ApolloServer({
   typeDefs,
   resolvers,
+  context: ({ req, res }) => ({ req, res }),
 });
 
 // applyMiddleware method connects ApolloServer to a specific HTTP framework such as express
 apolloServer.applyMiddleware({ app });
 
-app.get('/rest', (req, res) => {
+app.get('/rest', authCheck, (req, res) => {
   res.json({
     data: 'REST endpoint hit',
   });
