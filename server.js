@@ -4,10 +4,18 @@ require('colors');
 require('dotenv').config();
 const { loadFilesSync } = require('@graphql-tools/load-files');
 const { mergeTypeDefs, mergeResolvers } = require('@graphql-tools/merge');
-const { authCheck } = require('./helpers/auth');
-
+const { authCheckMiddleware } = require('./helpers/auth');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const cloudinary = require('cloudinary');
 const mongoose = require('mongoose');
 const path = require('path');
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const app = express();
 
@@ -24,6 +32,9 @@ const app = express();
     console.log('> DB Connection error: '.red, e);
   }
 })();
+
+app.use(cors());
+app.use(bodyParser.json({ limit: '5mb' }));
 
 const typeDefs = mergeTypeDefs(
   loadFilesSync(path.join(__dirname, './typeDefs')),
@@ -43,9 +54,29 @@ const apolloServer = new ApolloServer({
 // applyMiddleware method connects ApolloServer to a specific HTTP framework such as express
 apolloServer.applyMiddleware({ app });
 
-app.get('/rest', authCheck, (req, res) => {
+app.get('/rest', (req, res) => {
   res.json({
     data: 'REST endpoint hit',
+  });
+});
+
+app.post('/uploadimages', authCheckMiddleware, (req, res) => {
+  cloudinary.uploader.upload(
+    // "req.body.image" <- binary data of the image
+    req.body.image,
+    (result) => {
+      res.send({ url: result.secure_url, public_id: result.public_id });
+    },
+    //"public_id" <- public name ; "resource_type: 'auto'" <- JPEG/ PNG
+    { public_id: `${Date.now()}`, resource_type: 'auto' }
+  );
+});
+
+app.post('/removeimage', authCheckMiddleware, (req, res) => {
+  let image_id = req.body.public_id;
+  cloudinary.uploader.destroy(image_id, (err, result) => {
+    if (err) return res.json({ success: false, error: err });
+    res.send('ok');
   });
 });
 
