@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { ObjectId, Types } = mongoose.Schema;
+const { Types } = mongoose.Schema;
 
 const userSchema = new mongoose.Schema(
   {
@@ -21,7 +21,7 @@ const userSchema = new mongoose.Schema(
       default: [
         {
           url: 'https://via.placeholder.com/150.png?text=Profile',
-          public_id: Date.now,
+          public_id: Date.now(),
         },
       ],
     },
