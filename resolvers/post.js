@@ -2,8 +2,18 @@ const { authCheck } = require('../helpers/auth');
 const User = require('../models/user');
 const Post = require('../models/post');
 
-const allPosts = async (_, _a) => {
+//! SUBSCRIPTIONS (event types)
+const POST_ADDED = 'POST_ADDED';
+const POST_UPDATED = 'POST_UPDATED';
+const POST_DELETED = 'POST_DELETED';
+
+const allPosts = async (_, { page }) => {
+  const currentPage = page || 1;
+  const perPage = 3;
+
   return await Post.find({})
+    .skip((currentPage - 1) * perPage)
+    .limit(perPage)
     .populate('postedBy')
     .sort({ createdAt: -1 })
     .exec();
@@ -26,11 +36,11 @@ const postsByUser = async (_, _a, { req }) => {
     .sort({ createdAt: -1 });
 };
 
-const postCreate = async (_, _a, { req }) => {
+const postCreate = async (_, _a, { req, pubsub }) => {
   const { email } = await authCheck(req);
   if (_a.input.content.trim() === '') throw new Error('Content is required');
   const { _id } = await User.findOne({ email });
-  return (
+  const newPost = (
     await new Post({
       ..._a.input,
       postedBy: _id,
@@ -38,9 +48,11 @@ const postCreate = async (_, _a, { req }) => {
   )
     .populate('postedBy')
     .execPopulate();
+  pubsub.publish(POST_ADDED, { postAdded: newPost });
+  return newPost;
 };
 
-const postUpdate = async (_, { input }, { req }) => {
+const postUpdate = async (_, { input }, { req, pubsub }) => {
   const { email } = await authCheck(req);
   if (input.content.trim() === '') throw new Error('Content is required');
   else {
@@ -48,8 +60,8 @@ const postUpdate = async (_, { input }, { req }) => {
     const postToUpdate = await Post.findById(input._id).exec();
     if (_id.toString() !== postToUpdate.postedBy._id.toString())
       throw new Error('Unauthorized action');
-    else
-      return (
+    else {
+      const updatedPost = (
         await Post.findByIdAndUpdate(
           input._id,
           { ...input },
@@ -58,16 +70,29 @@ const postUpdate = async (_, { input }, { req }) => {
       )
         .populate('postedBy')
         .execPopulate();
+      pubsub.publish(POST_UPDATED, { postUpdated: updatedPost });
+      return updatedPost;
+    }
   }
 };
 
-const postDelete = async (_, { postId }, { req }) => {
+const postDelete = async (_, { postId }, { req, pubsub }) => {
   const { email } = await authCheck(req);
   const { _id } = await User.findOne({ email }).exec();
   const postToDelete = await Post.findById(postId).exec();
   if (_id.toString() !== postToDelete.postedBy._id.toString())
     throw new Error('Unauthorized action');
-  else return await Post.findByIdAndDelete(postId).exec();
+  else {
+    const deletedPost = await Post.findByIdAndDelete(postId).exec();
+    pubsub.publish(POST_DELETED, { postDeleted: deletedPost });
+    return deletedPost;
+  }
+};
+
+const search = async (_, { query }, ctx) => {
+  return await Post.find({ $text: { $search: query } })
+    .populate('postedBy')
+    .exec();
 };
 
 module.exports = {
@@ -76,10 +101,22 @@ module.exports = {
     postsByUser,
     singlePost,
     totalPosts,
+    search,
   },
   Mutation: {
     postCreate,
     postUpdate,
     postDelete,
+  },
+  Subscription: {
+    postAdded: {
+      subscribe: (_, _a, { pubsub }) => pubsub.asyncIterator([POST_ADDED]),
+    },
+    postUpdated: {
+      subscribe: (_, _a, { pubsub }) => pubsub.asyncIterator([POST_UPDATED]),
+    },
+    postDeleted: {
+      subscribe: (_, _a, { pubsub }) => pubsub.asyncIterator([POST_DELETED]),
+    },
   },
 };

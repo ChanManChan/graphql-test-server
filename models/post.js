@@ -3,7 +3,8 @@ const { ObjectId } = mongoose.Schema;
 
 const postSchema = new mongoose.Schema(
   {
-    content: { type: String, required: 'Content is required' },
+    // "text: true" <- text index required for $text query
+    content: { type: String, required: 'Content is required', text: true },
     image: {
       url: {
         type: String,

@@ -1,5 +1,5 @@
-const { ApolloServer } = require('apollo-server-express');
 const express = require('express');
+const { ApolloServer, PubSub } = require('apollo-server-express');
 require('colors');
 require('dotenv').config();
 const { loadFilesSync } = require('@graphql-tools/load-files');
@@ -10,12 +10,15 @@ const bodyParser = require('body-parser');
 const cloudinary = require('cloudinary');
 const mongoose = require('mongoose');
 const path = require('path');
+const http = require('http');
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
+const pubsub = new PubSub();
 
 const app = express();
 
@@ -40,19 +43,25 @@ const typeDefs = mergeTypeDefs(
   loadFilesSync(path.join(__dirname, './typeDefs')),
   { all: true }
 );
+
 const resolvers = mergeResolvers(
   loadFilesSync(path.join(__dirname, './resolvers')),
   { all: true }
 );
 
+//! APOLLO_SERVER
 const apolloServer = new ApolloServer({
   typeDefs,
   resolvers,
-  context: ({ req, res }) => ({ req, res }),
+  context: ({ req }) => ({ req, pubsub }),
 });
 
 // applyMiddleware method connects ApolloServer to a specific HTTP framework such as express
 apolloServer.applyMiddleware({ app });
+
+const httpserver = http.createServer(app);
+
+apolloServer.installSubscriptionHandlers(httpserver);
 
 app.get('/rest', (req, res) => {
   res.json({
@@ -80,12 +89,17 @@ app.post('/removeimage', authCheckMiddleware, (req, res) => {
   });
 });
 
-app.listen(process.env.PORT, () => {
+httpserver.listen(process.env.PORT, () => {
   console.log(
     `> Server running on http://localhost:${process.env.PORT}`.underline.blue
+      .bgCyan
   );
   console.log(
     `> GraphQl server ready at http://localhost:${process.env.PORT}${apolloServer.graphqlPath}`
       .bgMagenta
+  );
+  console.log(
+    `> Subscription is ready at http://localhost:${process.env.PORT}${apolloServer.subscriptionsPath}`
+      .bgYellow
   );
 });

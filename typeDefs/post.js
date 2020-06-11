@@ -18,14 +18,21 @@ module.exports = gql`
     image: ImageInput
   }
   type Query {
-    allPosts: [Post!]!
+    allPosts(page: Int): [Post!]!
     postsByUser: [Post!]!
     singlePost(postId: ID!): Post!
     totalPosts: Int!
+    search(query: String): [Post]
   }
   type Mutation {
     postCreate(input: PostCreateInput!): Post!
     postUpdate(input: PostUpdateInput!): Post!
     postDelete(postId: ID!): Post!
+  }
+  # whenever new post is created, i want to trigger the event so that all the connected clients are aware of this change (real time)
+  type Subscription {
+    postAdded: Post
+    postUpdated: Post
+    postDeleted: Post
   }
 `;
