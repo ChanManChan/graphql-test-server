@@ -24,12 +24,17 @@ const app = express();
 
 (async () => {
   try {
-    await mongoose.connect(process.env.DATABASE_LOCAL, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      useCreateindex: true,
-      useFindAndModify: false,
-    });
+    await mongoose.connect(
+      process.env.NODE_ENV === 'production'
+        ? process.env.DATABASE_CLOUD
+        : process.env.DATABASE_LOCAL,
+      {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+        useCreateindex: true,
+        useFindAndModify: false,
+      }
+    );
     console.log('> DB Connected'.bgWhite.green);
   } catch (e) {
     console.log('> DB Connection error: '.red, e);
